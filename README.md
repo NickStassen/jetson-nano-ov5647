@@ -143,6 +143,26 @@ simply enumerates a single sensor. Plug a second module in and it appears as
   Until a driver drives that pin high the sensor is invisible on I2C, which
   is exactly what a "dead" camera looks like even with a good module.
 
+## Troubleshooting
+
+- **Argus says "No cameras available" but `/dev/video0` works.** Check
+  `cat /proc/device-tree/tegra-camera-platform/modules/module0/drivernode0/devname`;
+  it must read `ov5647 7-0036`. If it still says `imx219 7-0010` the
+  plugin-manager fixup dtsi was not included after the plugin-manager (see above).
+  Also restart the daemon after loading the module: `sudo systemctl restart nvargus-daemon`.
+- **Strong magenta/pink cast in Argus output while raw V4L2 frames look fine.**
+  Look for `/var/nvidia/nvcam/settings/camera_overrides.isp`. Stock L4T does not
+  ship one; camera vendors' installers (Arducam's IMX477 package, for example)
+  drop a calibration for *their* sensor there and Argus applies it to every
+  camera. Move it aside and restart `nvargus-daemon`. Without a tuning file the
+  image is neutral but untuned (default ISP AWB/CCM), which is the expected
+  starting point for a sensor NVIDIA never calibrated.
+- **Camera invisible on I2C (`i2cdetect -y -r 7` shows nothing at 0x36).** That is
+  normal when no driver has claimed the port: the PWDN line is hogged low and the
+  module is unpowered. It does not mean the module is bad.
+- **v4l2-ctl captures the wrong resolution.** Set `--set-ctrl sensor_mode=N`
+  (see "Using it"); the frame size alone does not select the mode.
+
 ## Layout
 
 ```
