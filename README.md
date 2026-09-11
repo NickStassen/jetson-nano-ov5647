@@ -94,9 +94,16 @@ frame size. Select the mode explicitly:
 
 ```sh
 v4l2-ctl -d /dev/video0 --set-ctrl sensor_mode=1 --set-ctrl bypass_mode=0 \
+  --set-ctrl frame_rate=30000000 \
   --set-fmt-video=width=1920,height=1080,pixelformat=BG10 \
   --stream-mmap --stream-count=30 --stream-to=/tmp/raw.bin
 ```
+
+Also set `frame_rate` (in fps x 1e6): tegracam keeps the last value across
+mode changes instead of resetting to the mode's default, so after using the
+15 fps full-frame mode every other mode also runs at 15 fps until you say
+otherwise. `exposure` is in microseconds, `gain` in 1/16 steps (16 = 1.0x).
+Argus sets all of these itself, so this only matters on the raw path.
 
 Frames are 16-bit little-endian per pixel with the 10-bit sample in the low
 bits, Bayer order BGGR, rows padded to a 64-byte stride.
@@ -160,6 +167,8 @@ simply enumerates a single sensor. Plug a second module in and it appears as
 - **Camera invisible on I2C (`i2cdetect -y -r 7` shows nothing at 0x36).** That is
   normal when no driver has claimed the port: the PWDN line is hogged low and the
   module is unpowered. It does not mean the module is bad.
+- **v4l2-ctl runs every mode at 15 fps.** The `frame_rate` control is sticky; pass
+  `--set-ctrl frame_rate=30000000` (or 60000000) along with `sensor_mode`.
 - **v4l2-ctl captures the wrong resolution.** Set `--set-ctrl sensor_mode=N`
   (see "Using it"); the frame size alone does not select the mode.
 
