@@ -33,7 +33,7 @@ trap 'rm -f "$TMP"' EXIT
 cpp -nostdinc "${CPPI[@]}" -DLINUX_VERSION=409 -undef -D__DTS__ \
 	-x assembler-with-cpp -o "$TMP" "$DTS"
 
-dtc -@ -O dtb -o "$OUT" -b 0 -i "$(dirname "$DTS")" "${DTCI[@]}" \
+dtc -@ -H both -O dtb -o "$OUT" -b 0 -i "$(dirname "$DTS")" "${DTCI[@]}" \
 	-Wno-unit_address_vs_reg "$TMP"
 
 echo "built $OUT ($(stat -c %s "$OUT") bytes)"
