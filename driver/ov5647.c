@@ -277,11 +277,15 @@ static int ov5647_mipi_stream_off(struct camera_common_data *s_data)
 {
 	int err;
 
-	err = ov5647_write_reg(s_data, OV5647_REG_MIPI_CTRL00,
+	err = regmap_write(s_data->regmap, OV5647_REG_MIPI_CTRL00,
 		MIPI_CTRL00_CLOCK_LANE_GATE | MIPI_CTRL00_BUS_IDLE |
 		MIPI_CTRL00_CLOCK_LANE_DISABLE);
-	err |= ov5647_write_reg(s_data, OV5647_REG_FRAME_OFF_NUM, 0x0f);
-	err |= ov5647_write_reg(s_data, OV5647_REG_PAD_OUT, 0x01);
+	if (!err)
+		err = regmap_write(s_data->regmap, OV5647_REG_FRAME_OFF_NUM, 0x0f);
+	if (!err)
+		err = regmap_write(s_data->regmap, OV5647_REG_PAD_OUT, 0x01);
+	if (err)
+		dev_dbg(s_data->dev, "%s: i2c error %d\n", __func__, err);
 
 	return err;
 }
@@ -362,14 +366,21 @@ skip_power_seqn:
 
 	msleep(OV5647_POWER_ON_DELAY_MS);
 
-	/* Enable pad output drivers, then hold the MIPI lanes in LP-11. */
-	err = ov5647_write_reg(s_data, OV5647_REG_PAD_OE0, 0x0f);
-	err |= ov5647_write_reg(s_data, OV5647_REG_PAD_OE1, 0xff);
-	err |= ov5647_write_reg(s_data, OV5647_REG_PAD_OE2, 0xe4);
-	err |= ov5647_mipi_stream_off(s_data);
+	/*
+	 * Enable pad output drivers, then hold the MIPI lanes in LP-11.
+	 * Plain regmap writes here: on a port with no module fitted this is
+	 * where the probe finds out, and it should not spam the log.
+	 */
+	err = regmap_write(s_data->regmap, OV5647_REG_PAD_OE0, 0x0f);
+	if (!err)
+		err = regmap_write(s_data->regmap, OV5647_REG_PAD_OE1, 0xff);
+	if (!err)
+		err = regmap_write(s_data->regmap, OV5647_REG_PAD_OE2, 0xe4);
+	if (!err)
+		err = ov5647_mipi_stream_off(s_data);
 	if (err) {
-		dev_err(dev, "%s: sensor not responding after power on\n",
-			__func__);
+		dev_dbg(dev, "%s: sensor not responding after power on (%d)\n",
+			__func__, err);
 		goto ov5647_i2c_fail;
 	}
 
@@ -393,7 +404,7 @@ ov5647_iovdd_fail:
 	if (pw->avdd)
 		regulator_disable(pw->avdd);
 ov5647_avdd_fail:
-	dev_err(dev, "%s failed.\n", __func__);
+	dev_dbg(dev, "%s failed.\n", __func__);
 
 	return -ENODEV;
 }
@@ -692,7 +703,7 @@ static int ov5647_board_setup(struct ov5647 *priv)
 
 	err = ov5647_power_on(s_data);
 	if (err) {
-		dev_err(dev, "error during power on sensor (%d)\n", err);
+		dev_info(dev, "no OV5647 detected on this port (I2C not responding)\n");
 		goto err_power_on;
 	}
 
@@ -787,7 +798,7 @@ static int ov5647_probe(struct i2c_client *client,
 	err = ov5647_board_setup(priv);
 	if (err) {
 		tegracam_device_unregister(tc_dev);
-		dev_err(dev, "board setup failed\n");
+		dev_dbg(dev, "board setup failed (%d)\n", err);
 		return err;
 	}
 
